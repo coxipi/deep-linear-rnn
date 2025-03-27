@@ -1,0 +1,28 @@
+defaults:
+  - hydra: default
+  - _self_
+
+save_dir: "logs/"
+seed: 1
+
+logger:
+  _target_: lightning.pytorch.loggers.WandbLogger
+  entity: # Add your wandb entity here
+  project: # Add your wandb project here
+  name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+  save_dir: ${save_dir}
+  offline: False
+  tags: null
+
+trainer:
+  max_epochs: 10
+  enable_progress_bar: True
+  log_every_n_steps: 1
+
+#overwrite with your own class name and attributes
+
+datamodule: null
+
+task: null
+
+callbacks: null
