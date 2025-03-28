@@ -7,22 +7,62 @@ seed: 1
 
 logger:
   _target_: lightning.pytorch.loggers.WandbLogger
-  entity: # Add your wandb entity here
-  project: # Add your wandb project here
+  entity: guillaume-rabusseau 
+  project: deep-linear-rnn 
   name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
   save_dir: ${save_dir}
   offline: False
   tags: null
 
+train_dataset:
+  _target_: dataset.SyntheticCopyDataset
+  n_samples: 1000
+  seq_len: 10
+  vocab_size: 5 
+  lookahead: 5
+  datatype: "real"
+
+val_dataset:
+  _target_: dataset.SyntheticCopyDataset
+  n_samples: 200
+  seq_len: 10
+  vocab_size: 5 
+  lookahead: 5
+  datatype: "real"
+
+datamodule:
+  _target_: dataset.SyntheticCopyDataModule
+  batch_size: 32
+  train_dataset: ${train_dataset}
+  val_dataset: ${val_dataset}
+
 trainer:
-  max_epochs: 10
+  max_epochs: 500
   enable_progress_bar: True
-  log_every_n_steps: 1
+  log_every_n_steps: 10
+  limit_train_batches: 0.1
+  accelerator: "cpu"
 
-#overwrite with your own class name and attributes
+model:
+  _target_: model.DeepRNN
+  input_size: ${train_dataset.vocab_size}
+  output_size: ${train_dataset.vocab_size}
+  hidden_size: 256 
+  num_layers: 4
+  activation: 'relu'
+  output_type: ${train_dataset.datatype}
+  readout_activation: 'linear'
 
-datamodule: null
+callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: val_loss
+    patience: 1000
+    mode: min
+    verbose: True
 
-task: null
-
-callbacks: null
+task :
+  _target_: task.CopyTask
+  model: ${model}
+  lr: 1e-3
+  loss: mse
