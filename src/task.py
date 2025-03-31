@@ -95,10 +95,7 @@ class CopyTaskRegression(LightningModule):
     @abstractmethod
     def loss_function(self, target: Any, preds: Any) -> Tensor:
         """Loss function to be used in the training loop."""
-        if "mse":
-            loss = F.mse_loss(preds, target)
-        elif "bce":
-            loss = F.binary_cross_entropy(preds, target)
+        loss = F.mse_loss(preds, target)
         return loss
 
     def configure_optimizers(self) -> None:
@@ -148,10 +145,8 @@ class CopyTaskTokenized(LightningModule):
     @beartype
     def training_step(self, data, batch_idx) -> Tensor:
         x, y = data
-        print("input shape:",x.shape)
         # Forward pass
         preds = self.forward(x)
-        print("preds:", preds.shape)
 
         # Compute loss only on nonzero vectors
         loss = self.loss_function(preds, y)
@@ -164,10 +159,8 @@ class CopyTaskTokenized(LightningModule):
     @beartype
     def validation_step(self, data, batch_idx) -> Tensor:
         x, y = data
-        print("input shape:",x.shape)
         # Forward pass
         preds = self.forward(x)
-        print("preds:", preds.shape)
         # Compute loss
         loss = self.loss_function(preds, y)
         # Log loss

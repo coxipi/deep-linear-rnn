@@ -50,8 +50,7 @@ model:
   hidden_size: 256 
   num_layers: 4
   activation: 'relu'
-  output_type: ${train_dataset.datatype}
-  readout_activation: 'linear'
+  readout_activation: 'identity'
 
 callbacks:
   early_stopping:
@@ -62,7 +61,6 @@ callbacks:
     verbose: True
 
 task :
-  _target_: task.CopyTask
+  _target_: task.CopyTaskRegression
   model: ${model}
   lr: 1e-3
-  loss: mse
