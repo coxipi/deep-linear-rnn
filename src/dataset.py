@@ -53,29 +53,22 @@ class SyntheticCopyDataset(Dataset):
     ) -> Any:  # be careful on the return type
 
         if self.datatype == "int": 
-            # Generate random token indices for each sample
-            token_indices = torch.randint(1, self.vocab_size, (self.n_samples, self.seq_len))
-
-            # Convert token indices to one-hot encoded vectors
-            input_tensor = torch.zeros(self.n_samples, self.seq_len, self.vocab_size)
-            input_tensor.scatter_(2, token_indices.unsqueeze(-1), 1)
-            # Create the output tensor with p padding tokens at the beginning
-            output_tensor = torch.zeros_like(input_tensor)
-
-            # Apply padding for each sequence
-            output_tensor[:, self.lookahead:, :] = input_tensor[:, :-self.lookahead, :]
+            x = torch.randint(0, self.vocab_size, (self.n_samples, self.seq_len), dtype=torch.long)
+            y = torch.full((self.n_samples, self.seq_len), -1, dtype=torch.long)  # Initialize with -1 for ignored positions
+            y[:, self.lookahead:] = x[:, :-self.lookahead]
 
         elif self.datatype == "real":
             # Generate random sequences of real numbers
-            input_tensor = torch.randn(self.n_samples, self.seq_len, self.vocab_size)
+            x = torch.randn(self.n_samples, self.seq_len, self.vocab_size)
 
             # Create the output tensor with p padding tokens at the beginning
-            output_tensor = torch.zeros_like(input_tensor)
+            y = torch.zeros_like(x)
 
-            # Apply padding for each sequence
-            output_tensor[:, self.lookahead:, :] = input_tensor[:, :-self.lookahead, :]
+            # Compute the shifted output
+            y[:, self.lookahead:, :] = x[:, :-self.lookahead, :]
 
-        data_dict = {"x": input_tensor, "y": output_tensor}
+        # Make dicts for data and params 
+        data_dict = {"x": x, "y": y}
         params_dict = {
             "seq_len": self.seq_len,
             "vocab_size": self.vocab_size,
@@ -129,12 +122,12 @@ if __name__ == "__main__":
 
     print(f"Train dataset size: {len(train_dataset)}")
     # convert train example to integers
-    print(f"Train dataset example (int): {train_dataset[0][0].argmax(dim=-1).tolist()}")
-    print(f"Train dataset example (int): {train_dataset[0][1].argmax(dim=-1).tolist()}")
+    print(f"Train dataset example (int): {train_dataset[0][0]}")
+    print(f"Train dataset example (int): {train_dataset[0][1]}")
 
     print(f"Test dataset size: {len(val_dataset)}")
-    print(f"Test dataset example (int): {val_dataset[0][0].argmax(dim=-1).tolist()}")
-    print(f"Test dataset example (int): {val_dataset[0][1].argmax(dim=-1).tolist()}")
+    print(f"Test dataset example (int): {val_dataset[0][0]}")
+    print(f"Test dataset example (int): {val_dataset[0][1]}")
 
     data_module = SyntheticCopyDataModule(train_dataset, val_dataset, batch_size=32)
 
@@ -143,10 +136,10 @@ if __name__ == "__main__":
         break  # Just to show one batch
 
     real_train_dataset = SyntheticCopyDataset(
-        n_samples=1000, seq_len=10, vocab_size=5, lookahead=5, dataype="real"
+        n_samples=1000, seq_len=10, vocab_size=5, lookahead=5, datatype="real"
     )
     real_val_dataset = SyntheticCopyDataset(
-        n_samples=200, seq_len=10, vocab_size=5, lookahead=5, dataype="real"
+        n_samples=200, seq_len=10, vocab_size=5, lookahead=5, datatype="real"
     )
 
     print("Train dataset size (real):", len(real_train_dataset))

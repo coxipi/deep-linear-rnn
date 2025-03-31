@@ -31,7 +31,6 @@ else:
     dropout_fn = nn.Dropout2d
 
 
-
 class S4Model(nn.Module):
 
     def __init__(
@@ -104,11 +103,10 @@ class S4Model(nn.Module):
 
 
 class DeepRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', output_type='real', readout_activation='linear'):
+    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity'):
         super(DeepRNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.output_type = output_type
         
         if activation == 'relu':
             self.activation_fn = F.relu
@@ -123,10 +121,10 @@ class DeepRNN(nn.Module):
             self.readout_activation_fn = F.relu
         elif readout_activation == 'tanh':
             self.readout_activation_fn = torch.tanh
-        elif readout_activation == 'linear':
+        elif readout_activation == 'identity':
             self.readout_activation_fn = lambda x: x
         else:
-            raise ValueError("readout_activation must be 'relu', 'tanh', or 'linear'")
+            raise ValueError("readout_activation must be 'relu', 'tanh', or 'identity'")
         
         self.rnn_layers = nn.ModuleList([
             nn.RNNCell(input_size if i == 0 else hidden_size, hidden_size)
@@ -143,70 +141,126 @@ class DeepRNN(nn.Module):
         out = self.fc(h_next[-1])
         out = self.readout_activation_fn(out)
         
-        if self.output_type == 'token':
-            out = F.log_softmax(out, dim=-1)
-        
         return out, torch.stack(h_next)
     
     def init_hidden(self, batch_size):
         return [torch.zeros(batch_size, self.hidden_size) for _ in range(self.num_layers)]
 
 
-def main():
-    input_size = 5
-    hidden_size = 10
-    output_size = 5
-    num_layers = 3
-    seq_length = 10 
-    batch_size = 32
+class SimpleSeq2SeqRNN(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, hidden_size, output_size):
+        super(SimpleSeq2SeqRNN, self).__init__()
+        self.hidden_size = hidden_size
+        
+        # Embedding layer to convert input tokens to vectors
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        
+        # Single RNN cell
+        self.rnn = nn.RNNCell(embedding_dim, hidden_size)
+        
+        # Output projection to vocabulary size (no activation - raw logits)
+        self.fc = nn.Linear(hidden_size, output_size)
     
-    test_cases = [
-        ('identity', 'linear'),
-        ('relu', 'relu'),
-        ('identity', 'relu'),
-        ('relu', 'linear')
-    ]
-    
-    x = torch.randn(seq_length, batch_size, input_size)
-    
-    for activation, readout_activation in test_cases:
-        model = DeepRNN(input_size, hidden_size, output_size, num_layers, activation, 'real', readout_activation)
-        h = model.init_hidden(batch_size)
+    def forward(self, x, hidden=None):
+        """
+        x: Input sequence tensor of shape (seq_len, batch_size) containing token indices
+        hidden: Initial hidden state of shape (batch_size, hidden_size) or None
+        
+        Returns:
+        - outputs: Tensor of shape (seq_len, batch_size, output_size) containing logits
+        - hidden: Final hidden state
+        """
+        seq_len, batch_size = x.size()
+        
+        # Initialize hidden state if not provided
+        if hidden is None:
+            hidden = torch.zeros(batch_size, self.hidden_size, device=x.device)
+        
+        # Process the sequence one step at a time
         outputs = []
+        for t in range(seq_len):
+            # Get current input tokens and convert to embeddings
+            emb = self.embedding(x[t])  # (batch_size, embedding_dim)
+            
+            # Update hidden state
+            hidden = self.rnn(emb, hidden)
+            
+            # Project to output size (logits)
+            output = self.fc(hidden)  # (batch_size, output_size)
+            outputs.append(output)
         
-        for t in range(seq_length):
-            out, h = model(x[t], h)
-            outputs.append(out)
+        # Stack outputs along sequence dimension
+        outputs = torch.stack(outputs)  # (seq_len, batch_size, output_size)
         
-        outputs = torch.stack(outputs)
-        outputs = outputs.permute(1, 0, 2)
-        print(f"Model with activation={activation}, readout_activation={readout_activation} -> Output shape: {outputs.shape}")
+        return outputs, hidden
 
-            # Test case for token input with a two-letter alphabet (one-hot encoding)
-    token_input_size = 2  # Two-letter alphabet
-    token_output_size = 2
-    
-    token_model = DeepRNN(token_input_size, hidden_size, token_output_size, num_layers, 'relu', 'token', 'linear')
-    token_h = token_model.init_hidden(batch_size)
-    
-    token_x = torch.randint(0, 2, (seq_length, batch_size))  # Random binary sequence
-    token_x = F.one_hot(token_x, num_classes=token_input_size).float()  # Convert to OHE
-    
-    token_outputs = []
-    for t in range(seq_length):
-        out, token_h = token_model(token_x[t], token_h)
-        token_outputs.append(out)
-    
-    token_outputs = torch.stack(token_outputs)
-    print(f"Token model (OHE input) -> Output shape: {token_outputs.shape}")
 
-    # Test S4 model
-    x = torch.randn(batch_size, seq_length, input_size)
-    s4_model = S4Model(d_input=input_size, d_output=output_size, d_model=hidden_size, n_layers=num_layers)
-    token_outputs = []
-    print("throw the full input to s4 layer")
-    print(s4_model(x).shape)
+class DeepRNNWithEmbedding(DeepRNN):
+    def __init__(self, vocab_size, embedding_dim, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity'):
+        super().__init__(embedding_dim, hidden_size, output_size, num_layers, activation, readout_activation)
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+    
+    def forward(self, x, h):
+        x = self.embedding(x)
+        return super().forward(x, h)
 
+
+def test_seq2seq_rnn(vocab_size=100, embedding_dim=64, hidden_size=128):
+    vocab_size = 100
+    embedding_dim = 64
+    hidden_size = 128
+    output_size = vocab_size
+    model = SimpleSeq2SeqRNN(vocab_size, embedding_dim, hidden_size, output_size)
+
+    # Example input: a sequence of token indices
+    seq_len = 10
+    batch_size = 32
+    input_tensor = torch.randint(0, vocab_size, (seq_len, batch_size))  # Random token indices
+    print(input_tensor.shape)  # Should be (seq_len, batch_size)
+    output, hidden = model(input_tensor)
+    print("Output shape:", output.shape)  # Should be (seq_len, batch_size, output_size)
+
+
+def test_deep_rnn(input_size=10, hidden_size=20, output_size=5, num_layers=2):
+    model = DeepRNN(input_size, hidden_size, output_size, num_layers)
+    
+    # Example input: a sequence of vectors
+    batch_size = 4
+    seq_len = 6
+    x = torch.randn(batch_size, seq_len, input_size)
+    
+    # Initialize hidden state
+    h = model.init_hidden(batch_size)
+    
+    # Forward pass
+    outputs = []
+    for t in range(seq_len):
+        x_t = x[:, t, :]
+        output, h = model(x_t, h)
+        outputs.append(output)
+
+    outputs = torch.stack(outputs, dim=0)  # Stack outputs along sequence dimension 
+    print("Output shape:", outputs.shape)  # Should be (batch_size, output_size)
+
+def test_deep_rnn_with_embedding(vocab_size=100, embedding_dim=64, hidden_size=128):
+    model = DeepRNNWithEmbedding(vocab_size, embedding_dim, hidden_size, vocab_size, num_layers=2)
+
+    # Example input: a sequence of token indices
+    seq_len = 10
+    batch_size = 32
+    input_tensor = torch.randint(0, vocab_size, (seq_len, batch_size))  # Random token indices
+    print(input_tensor.shape)  # Should be (seq_len, batch_size)
+    h = model.init_hidden(batch_size)
+
+    outputs = []
+    for t in range(seq_len):
+        x_t = input_tensor[t]
+        output, h = model(x_t, h)
+        outputs.append(output)
+    outputs = torch.stack(outputs, dim=0)
+    print("Output shape:", outputs.shape)  # Should be (seq_len, batch_size, output_size)
 
 if __name__ == "__main__":
-    main()
+    test_seq2seq_rnn()
+    test_deep_rnn()
+    test_deep_rnn_with_embedding()
