@@ -20,7 +20,7 @@ train_dataset:
   seq_len: 10
   vocab_size: 2 
   lookahead: 6
-  datatype: "real"
+  datatype: "int"
 
 val_dataset:
   _target_: dataset.SyntheticCopyDataset
@@ -28,11 +28,11 @@ val_dataset:
   seq_len: 10
   vocab_size: 2 
   lookahead: 6
-  datatype: "real"
+  datatype: "int"
 
 datamodule:
   _target_: dataset.SyntheticCopyDataModule
-  batch_size: 2
+  batch_size: 32 
   train_dataset: ${train_dataset}
   val_dataset: ${val_dataset}
 
@@ -44,11 +44,12 @@ trainer:
   accelerator: "cpu"
 
 model:
-  _target_: model.DeepRNN
-  input_size: ${train_dataset.vocab_size}
+  _target_: model.DeepRNNWithEmbedding
+  vocab_size: ${train_dataset.vocab_size}
+  embedding_dim: 32
+  hidden_size: 64 
   output_size: ${train_dataset.vocab_size}
-  hidden_size: 2 
-  num_layers: 2
+  num_layers: 4
   activation: 'relu'
   readout_activation: 'identity'
 
@@ -61,6 +62,6 @@ callbacks:
     verbose: True
 
 task :
-  _target_: task.CopyTaskRegression
+  _target_: task.CopyTaskTokenized
   model: ${model}
   lr: 1e-3
