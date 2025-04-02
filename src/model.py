@@ -31,6 +31,68 @@ else:
     dropout_fn = nn.Dropout2d
 
 
+class LinearRNNCell(nn.Module):
+    """
+    A linear RNN cell without nonlinearities, similar to PyTorch's RNNCell but without activation functions.
+    
+    Args:
+        input_size: The number of expected features in the input x
+        hidden_size: The number of features in the hidden state h
+        bias: If False, then the layer does not use bias weights b_ih and b_hh
+    """
+    
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(LinearRNNCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        
+        # Weight matrices
+        self.weight_ih = nn.Parameter(torch.Tensor(hidden_size, input_size))
+        self.weight_hh = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
+        
+        # Optional bias
+        if bias:
+            self.bias_ih = nn.Parameter(torch.Tensor(hidden_size))
+            self.bias_hh = nn.Parameter(torch.Tensor(hidden_size))
+        else:
+            self.register_parameter('bias_ih', None)
+            self.register_parameter('bias_hh', None)
+            
+        self.reset_parameters()
+        
+    def reset_parameters(self):
+        # Use standard initialization method from PyTorch
+        nn.init.xavier_uniform_(self.weight_ih)
+        nn.init.xavier_uniform_(self.weight_hh)
+        if self.bias:
+            nn.init.zeros_(self.bias_ih)
+            nn.init.zeros_(self.bias_hh)
+            
+    def forward(self, input, hx=None):
+        """
+        Forward pass of the linear RNN cell.
+        
+        Args:
+            input: tensor of shape (batch, input_size) containing input features
+            hx: tensor of shape (batch, hidden_size) containing the initial hidden state
+                or None for zero initial hidden state
+                
+        Returns:
+            h': tensor of shape (batch, hidden_size) containing the next hidden state
+        """
+        if hx is None:
+            hx = torch.zeros(input.size(0), self.hidden_size, 
+                             dtype=input.dtype, device=input.device)
+        
+        # Linear transformations
+        h_next = F.linear(input, self.weight_ih, self.bias_ih) + \
+                 F.linear(hx, self.weight_hh, self.bias_hh)
+        
+        # No activation function
+        return h_next
+
+
 class S4Model(nn.Module):
 
     def __init__(
@@ -103,7 +165,7 @@ class S4Model(nn.Module):
 
 
 class DeepRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity', rnncell='linear'):
+    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity', rnncell='rnn'):
         super(DeepRNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -126,8 +188,13 @@ class DeepRNN(nn.Module):
         else:
             raise ValueError("readout_activation must be 'relu', 'tanh', or 'identity'")
         
+        if rnncell == 'linear':
+            self.rnn_cell = LinearRNNCell
+        elif rnncell == 'rnn':
+            self.rnn_cell = nn.RNNCell
+        
         self.rnn_layers = nn.ModuleList([
-            nn.RNNCell(input_size if i == 0 else hidden_size, hidden_size)
+            self.rnn_cell(input_size if i == 0 else hidden_size, hidden_size)
             for i in range(num_layers)
         ])
         self.fc = nn.Linear(hidden_size, output_size)
@@ -198,8 +265,8 @@ class SimpleSeq2SeqRNN(nn.Module):
 
 
 class DeepRNNWithEmbedding(DeepRNN):
-    def __init__(self, vocab_size, embedding_dim, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity'):
-        super().__init__(embedding_dim, hidden_size, output_size, num_layers, activation, readout_activation)
+    def __init__(self, vocab_size, embedding_dim, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity', rnncell='rnn'):
+        super().__init__(embedding_dim, hidden_size, output_size, num_layers, activation, readout_activation, rnncell)
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
     
     def forward(self, x, h):
@@ -222,9 +289,8 @@ def test_seq2seq_rnn(vocab_size=100, embedding_dim=64, hidden_size=128):
     output, hidden = model(input_tensor)
     print("Output shape:", output.shape)  # Should be (seq_len, batch_size, output_size)
 
-
 def test_deep_rnn(input_size=10, hidden_size=20, output_size=5, num_layers=2):
-    model = DeepRNN(input_size, hidden_size, output_size, num_layers)
+    model = DeepRNN(input_size, hidden_size, output_size, num_layers, rnncell='linear')
     
     # Example input: a sequence of vectors
     batch_size = 4
@@ -263,6 +329,9 @@ def test_deep_rnn_with_embedding(vocab_size=100, embedding_dim=64, hidden_size=1
     print("Output shape:", outputs.shape)  # Should be (seq_len, batch_size, output_size)
 
 if __name__ == "__main__":
+    print("Testing SimpleSeq2SeqRNN...")
     test_seq2seq_rnn()
+    print("Testing DeepRNN...")
     test_deep_rnn()
+    print("Testing DeepRNNWithEmbedding...")
     test_deep_rnn_with_embedding()

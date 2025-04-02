@@ -61,6 +61,7 @@ model:
   num_layers: 4
   activation: 'relu'
   readout_activation: 'identity'
+  rnncell: 'linear'
 
 callbacks:
   early_stopping:
