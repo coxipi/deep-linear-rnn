@@ -13,3 +13,5 @@ beartype
 submitit
 hydra-submitit-launcher
 pytest
+einops
+scipy

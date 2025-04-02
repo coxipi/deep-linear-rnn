@@ -87,11 +87,13 @@ class SyntheticCopyDataModule(LightningDataModule):
         val_dataset: Dataset,
         batch_size: int,
         num_workers: int = 0,
+        test_dataset: Optional[Dataset] = None,
     ):
         super().__init__()
         self.save_hyperparameters()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
+        self.test_dataset = test_dataset
 
         # setup
 
@@ -115,10 +117,21 @@ class SyntheticCopyDataModule(LightningDataModule):
             collate_fn=None,
         )
 
+    @beartype
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            shuffle=False,
+            collate_fn=None,
+        )
+
 if __name__ == "__main__":
     # Example usage
     train_dataset = SyntheticCopyDataset(n_samples=1000, seq_len=10, vocab_size=5, lookahead=5)
     val_dataset = SyntheticCopyDataset(n_samples=200, seq_len=10, vocab_size=5, lookahead=5)
+    test_dataset = SyntheticCopyDataset(n_samples=200, seq_len=10, vocab_size=5, lookahead=5)
 
     print(f"Train dataset size: {len(train_dataset)}")
     # convert train example to integers
@@ -129,9 +142,17 @@ if __name__ == "__main__":
     print(f"Test dataset example (int): {val_dataset[0][0]}")
     print(f"Test dataset example (int): {val_dataset[0][1]}")
 
-    data_module = SyntheticCopyDataModule(train_dataset, val_dataset, batch_size=32)
+    data_module = SyntheticCopyDataModule(train_dataset, val_dataset, batch_size=32, test_dataset=test_dataset)
 
     for batch in data_module.train_dataloader():
+        print(batch[0].shape)
+        break  # Just to show one batch
+
+    for batch in data_module.val_dataloader():
+        print(batch[0].shape)
+        break  # Just to show one batch
+
+    for batch in data_module.test_dataloader():
         print(batch[0].shape)
         break  # Just to show one batch
 

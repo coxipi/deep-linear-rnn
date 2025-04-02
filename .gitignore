@@ -163,4 +163,3 @@ cython_debug/
 lightning_logs/
 logs/
 .vscode/
-configs/

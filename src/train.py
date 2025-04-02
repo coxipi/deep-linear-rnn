@@ -27,10 +27,12 @@ def train(cfg):
     trainer = Trainer(
         logger=logger,
         callbacks=callbacks,
-        enable_checkpointing=False,
+        enable_checkpointing=True,
         **cfg.trainer,
     )
     trainer.fit(model=task, datamodule=dataset)
+
+    trainer.test(ckpt_path="best", model=task, datamodule=dataset)
 
 
 if __name__ == "__main__":

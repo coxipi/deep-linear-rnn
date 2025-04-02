@@ -30,11 +30,20 @@ val_dataset:
   lookahead: 6
   datatype: "int"
 
+test_dataset:
+  _target_: dataset.SyntheticCopyDataset
+  n_samples: 200
+  seq_len: 10
+  vocab_size: 2 
+  lookahead: 6
+  datatype: "int"
+
 datamodule:
   _target_: dataset.SyntheticCopyDataModule
   batch_size: 32 
   train_dataset: ${train_dataset}
   val_dataset: ${val_dataset}
+  test_dataset: ${test_dataset}
 
 trainer:
   max_epochs: 500
@@ -59,6 +68,14 @@ callbacks:
     monitor: val_loss
     patience: 1000
     mode: min
+    verbose: True
+  model_checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    filename: "{epoch:02d}-{val_loss:.2f}"
+    dirpath: ${save_dir}
     verbose: True
 
 task :

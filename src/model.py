@@ -103,11 +103,11 @@ class S4Model(nn.Module):
 
 
 class DeepRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity'):
+    def __init__(self, input_size, hidden_size, output_size, num_layers, activation='relu', readout_activation='identity', rnncell='linear'):
         super(DeepRNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        
+
         if activation == 'relu':
             self.activation_fn = F.relu
         elif activation == 'tanh':
@@ -133,16 +133,18 @@ class DeepRNN(nn.Module):
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x, h):
-        h_next = []
+        h_depth = []
+        h_rec = []
         for i, rnn in enumerate(self.rnn_layers):
-            h_i = rnn(x if i == 0 else h_next[i-1], h[i])
+            h_i = rnn(x if i == 0 else h_depth[i-1], h[i])
+            h_rec.append(h_i)
             h_i = self.activation_fn(h_i)
-            h_next.append(h_i)
-        out = self.fc(h_next[-1])
+            h_depth.append(h_i)
+        out = self.fc(h_depth[-1])
         out = self.readout_activation_fn(out)
         
-        return out, torch.stack(h_next)
-    
+        return out, torch.stack(h_rec)
+        
     def init_hidden(self, batch_size):
         return [torch.zeros(batch_size, self.hidden_size) for _ in range(self.num_layers)]
 

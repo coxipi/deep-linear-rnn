@@ -91,6 +91,18 @@ class CopyTaskRegression(LightningModule):
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
 
+    @beartype
+    def test_step(self, data, batch_idx) -> Tensor:
+        x, y = data
+        # Forward pass
+        preds = self.forward(x)
+        # Create mask for nonzero vectors (shape: seq_len, batch)
+        mask = (y.abs().sum(dim=-1) != 0)
+        # Compute loss only on nonzero vectors
+        loss = self.loss_function(y[mask], preds[mask])
+        # Log loss
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        return loss
 
     @abstractmethod
     def loss_function(self, target: Any, preds: Any) -> Tensor:
@@ -108,11 +120,13 @@ class CopyTaskTokenized(LightningModule):
         self,
         model: Any,
         lr: float = 1e-4,
+        ignore_index: int = -1,
     ):
         super().__init__()
         self.model = model
         self.save_hyperparameters()  # ignore the instance of nn.Module that are already stored ignore=['my_module'])
         self.loss_function = sequential_ce_loss 
+        self.ignore_index = ignore_index
 
     @beartype
     def forward(self, x: Any, batch_first=True) -> Any:
@@ -134,14 +148,6 @@ class CopyTaskTokenized(LightningModule):
 
         return outputs 
     
-    #def forward(self, x):
-    #    x = x.permute(1,0)
-    #    outs, _ = self.model(x)
-    #    outs = outs.permute(1,0,2)
-    #    print(outs.shape)
-    #    # Revert back to match outputs with ground truth labels
-    #    return outs
-
     @beartype
     def training_step(self, data, batch_idx) -> Tensor:
         x, y = data
@@ -163,8 +169,27 @@ class CopyTaskTokenized(LightningModule):
         preds = self.forward(x)
         # Compute loss
         loss = self.loss_function(preds, y)
+        # Compute mean accuracy
+        mask = y != self.ignore_index 
+        accuracy = torch.logical_and(preds.argmax(dim=-1) == y, mask).float().sum() / mask.float().sum() if mask.any() else torch.tensor(0.0)
         # Log loss
+        self.log("val_accuracy", accuracy, prog_bar=True, on_step=False, on_epoch=True)
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+
+        return loss
+
+    def test_step(self, data, batch_idx) -> Tensor:
+        x, y = data
+        # Forward pass
+        preds = self.forward(x)
+        # Compute loss
+        loss = self.loss_function(preds, y)
+        # Compute mean accuracy
+        mask = y != self.ignore_index 
+        accuracy = torch.logical_and(preds.argmax(dim=-1) == y, mask).float().sum() / mask.float().sum() if mask.any() else torch.tensor(0.0)
+        # Log loss
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("test_accuracy", accuracy, prog_bar=True, on_step=False, on_epoch=True)
 
         return loss
 
