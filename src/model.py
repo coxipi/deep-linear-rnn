@@ -7,14 +7,6 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 from ssm import S4Block as S4
 
-class abstract_model(ABC, nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @abstractmethod
-    def forward(self, x: Any) -> Any:
-        """Perform forward pass of the model."""
-        pass
 
 import torch
 import torch.nn as nn
@@ -108,7 +100,6 @@ class S4Model(nn.Module):
 
         self.prenorm = prenorm
 
-        # Linear encoder (d_input = 1 for grayscale and 3 for RGB)
         self.encoder = nn.Linear(d_input, d_model)
 
         # Stack S4 layers as residual blocks
@@ -155,11 +146,8 @@ class S4Model(nn.Module):
 
         x = x.transpose(-1, -2)
 
-        # Pooling: average pooling over the sequence length
-        x = x.mean(dim=1)
-
         # Decode the outputs
-        x = self.decoder(x)  # (B, d_model) -> (B, d_output)
+        x = self.decoder(x)  # (B, L, d_model) -> (B, L, d_output)
 
         return x
 
@@ -199,7 +187,30 @@ class DeepRNN(nn.Module):
         ])
         self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x, h):
+    def forward(self, x: Any, batch_first=True) -> Any:
+        if batch_first:
+            # Swap the first two dimensions (batch, seq_len, ...) -> (seq_len, batch, ...)
+            x = x.transpose(0, 1)
+
+        # Extract sequence length and batch size for either 2D or 3D input
+        seq_length = x.size(0)
+        batch_size = x.size(1)
+        h = self.init_hidden(batch_size)
+        outputs = []
+        
+        for t in range(seq_length):
+            out, h = self.forward_one_timestep(x[t], h)
+            outputs.append(out)
+
+        outputs = torch.stack(outputs)
+
+        if batch_first:
+            # Swap back two dimensions (seq_len, batch, ...) -> (batch, seq_len, ...)
+            outputs = outputs.transpose(0, 1)
+
+        return outputs 
+
+    def forward_one_timestep(self, x, h):
         h_depth = []
         h_rec = []
         for i, rnn in enumerate(self.rnn_layers):
@@ -269,9 +280,26 @@ class DeepRNNWithEmbedding(DeepRNN):
         super().__init__(embedding_dim, hidden_size, output_size, num_layers, activation, readout_activation, rnncell)
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
     
-    def forward(self, x, h):
+    def forward(self, x, batch_first=True):
         x = self.embedding(x)
-        return super().forward(x, h)
+        return super().forward(x, batch_first=batch_first)
+
+class S4ModelWithEmbedding(S4Model):
+    def __init__(
+        self,
+        d_input,
+        embedding_dim,
+        d_output=10,
+        d_model=128,
+        n_layers=4,
+        dropout=0.2,
+        prenorm=False,
+    ):
+        super().__init__(embedding_dim, d_output, d_model, n_layers, dropout, prenorm)
+        self.embedding = nn.Embedding(d_input, embedding_dim)
+    def forward(self, x):
+        x = self.embedding(x)
+        return super().forward(x)
 
 
 def test_seq2seq_rnn(vocab_size=100, embedding_dim=64, hidden_size=128):
@@ -289,25 +317,17 @@ def test_seq2seq_rnn(vocab_size=100, embedding_dim=64, hidden_size=128):
     output, hidden = model(input_tensor)
     print("Output shape:", output.shape)  # Should be (seq_len, batch_size, output_size)
 
-def test_deep_rnn(input_size=10, hidden_size=20, output_size=5, num_layers=2):
+def test_deep_rnn(input_size=100, hidden_size=20, output_size=5, num_layers=2):
     model = DeepRNN(input_size, hidden_size, output_size, num_layers, rnncell='linear')
     
     # Example input: a sequence of vectors
-    batch_size = 4
-    seq_len = 6
+    batch_size = 32 
+    seq_len = 10 
     x = torch.randn(batch_size, seq_len, input_size)
-    
-    # Initialize hidden state
-    h = model.init_hidden(batch_size)
-    
-    # Forward pass
-    outputs = []
-    for t in range(seq_len):
-        x_t = x[:, t, :]
-        output, h = model(x_t, h)
-        outputs.append(output)
+    print("Input shape:", x.shape)  # Should be (batch_size, seq_len, input_size)
 
-    outputs = torch.stack(outputs, dim=0)  # Stack outputs along sequence dimension 
+    outputs = model(x)
+    
     print("Output shape:", outputs.shape)  # Should be (batch_size, output_size)
 
 def test_deep_rnn_with_embedding(vocab_size=100, embedding_dim=64, hidden_size=128):
@@ -318,15 +338,19 @@ def test_deep_rnn_with_embedding(vocab_size=100, embedding_dim=64, hidden_size=1
     batch_size = 32
     input_tensor = torch.randint(0, vocab_size, (seq_len, batch_size))  # Random token indices
     print(input_tensor.shape)  # Should be (seq_len, batch_size)
-    h = model.init_hidden(batch_size)
 
-    outputs = []
-    for t in range(seq_len):
-        x_t = input_tensor[t]
-        output, h = model(x_t, h)
-        outputs.append(output)
-    outputs = torch.stack(outputs, dim=0)
+    outputs = model(input_tensor)
     print("Output shape:", outputs.shape)  # Should be (seq_len, batch_size, output_size)
+
+def test_s4():
+    s4_model = S4Model(d_input=100, d_output=5, d_model=128, n_layers=4, dropout=0.2)
+    batch_size = 32 
+    seq_len =10 
+    x = torch.randn(batch_size, seq_len, 100)
+    print("Input shape:", x.shape)  # Should be (batch_size, seq_len, d_input)
+    outs = s4_model(x)
+    print("S4 Model Output shape:", outs.shape)  # Should be (batch_size, seq_len, d_output)
+
 
 if __name__ == "__main__":
     print("Testing SimpleSeq2SeqRNN...")
@@ -335,3 +359,5 @@ if __name__ == "__main__":
     test_deep_rnn()
     print("Testing DeepRNNWithEmbedding...")
     test_deep_rnn_with_embedding()
+    print("Testing S4Model...")
+    test_s4()

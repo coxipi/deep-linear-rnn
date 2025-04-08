@@ -20,7 +20,7 @@ train_dataset:
   seq_len: 10
   vocab_size: 2 
   lookahead: 6
-  datatype: "real"
+  datatype: "int"
 
 val_dataset:
   _target_: dataset.SyntheticCopyDataset
@@ -28,7 +28,7 @@ val_dataset:
   seq_len: 10
   vocab_size: 2 
   lookahead: 6
-  datatype: "real"
+  datatype: "int"
 
 test_dataset:
   _target_: dataset.SyntheticCopyDataset
@@ -36,25 +36,26 @@ test_dataset:
   seq_len: 10
   vocab_size: 2 
   lookahead: 6
-  datatype: "real"
+  datatype: "int"
 
 datamodule:
   _target_: dataset.SyntheticCopyDataModule
-  batch_size: 2
+  batch_size: 32 
   train_dataset: ${train_dataset}
   val_dataset: ${val_dataset}
   test_dataset: ${test_dataset}
 
 trainer:
-  max_epochs: 200 
+  max_epochs: 500
   enable_progress_bar: True
   log_every_n_steps: 10
   limit_train_batches: 0.1
   accelerator: "cpu"
 
 model:
-  _target_: model.S4Model
+  _target_: model.S4ModelWithEmbedding
   d_input: ${train_dataset.vocab_size}
+  embedding_dim: 32
   d_output: ${train_dataset.vocab_size}
   d_model: 64 
   n_layers: 4
@@ -68,8 +69,16 @@ callbacks:
     patience: 1000
     mode: min
     verbose: True
+  model_checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    filename: "{epoch:02d}-{val_loss:.2f}"
+    dirpath: ${save_dir}
+    verbose: True
 
 task :
-  _target_: task.CopyTaskRegression
+  _target_: task.CopyTaskTokenized
   model: ${model}
   lr: 1e-3
