@@ -284,6 +284,7 @@ class DeepRNNWithEmbedding(DeepRNN):
         x = self.embedding(x)
         return super().forward(x, batch_first=batch_first)
 
+
 class S4ModelWithEmbedding(S4Model):
     def __init__(
         self,

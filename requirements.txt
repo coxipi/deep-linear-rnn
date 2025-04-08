@@ -15,3 +15,5 @@ hydra-submitit-launcher
 pytest
 einops
 scipy
+transformers
+datasets

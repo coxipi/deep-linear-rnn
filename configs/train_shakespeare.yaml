@@ -1,0 +1,62 @@
+defaults:
+  - hydra: default
+  - _self_
+
+save_dir: "logs/"
+seed: 1
+
+logger:
+  _target_: lightning.pytorch.loggers.WandbLogger
+  entity: guillaume-rabusseau 
+  project: deep-linear-rnn 
+  name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+  save_dir: ${save_dir}
+  offline: False
+  tags: null
+
+datamodule:
+  _target_: shakespeare.ShakesepeareDataModule
+  tokenizer:
+    _target_: transformers.AutoTokenizer.from_pretrained
+    pretrained_model_name_or_path: "gpt2"
+  vocab_size: 50257 # known value for gpt-2 tokenizer, hacky but it works 
+  input_seq_len: 64 
+  batch_size: 32 
+
+trainer:
+  max_epochs: 50 
+  enable_progress_bar: True
+  log_every_n_steps: 10
+  limit_train_batches: 0.1
+  accelerator: "cpu"
+
+model:
+  _target_: model.S4ModelWithEmbedding
+  d_input: ${datamodule.vocab_size}
+  embedding_dim: 512
+  d_output: ${datamodule.vocab_size}
+  d_model: 256 
+  n_layers: 2
+  prenorm: True
+  dropout: 0.1
+
+callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: val_loss
+    patience: 1000
+    mode: min
+    verbose: True
+  model_checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    filename: "{epoch:02d}-{val_loss:.2f}"
+    dirpath: ${save_dir}
+    verbose: True
+
+task :
+  _target_: task.ShakespeareTask
+  model: ${model}
+  lr: 1e-3
