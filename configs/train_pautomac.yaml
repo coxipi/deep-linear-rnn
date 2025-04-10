@@ -1,0 +1,62 @@
+defaults:
+  - hydra: default
+  - _self_
+
+save_dir: "logs/"
+seed: 1
+
+logger:
+  _target_: lightning.pytorch.loggers.WandbLogger
+  entity: guillaume-rabusseau 
+  project: deep-linear-rnn 
+  name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+  save_dir: ${save_dir}
+  offline: False
+  tags: null
+
+dataset:
+  _target_: pautomac.PautomacDataset
+  automata_name: "3.pautomac.train"
+
+datamodule:
+  _target_: pautomac.PautomacDataModule
+  dataset: ${dataset}
+  batch_size: 32
+
+trainer:
+  max_epochs: 100 
+  enable_progress_bar: True
+  log_every_n_steps: 10
+  limit_train_batches: 0.1
+  accelerator: "cpu"
+
+model:
+  _target_: model.S4ModelWithEmbedding
+  d_input: 5 # HARDCODED FOR NOT should be vocab_size
+  embedding_dim: 2 
+  d_output: 5 # HARDCODED FOR NOT should be vocab_size 
+  d_model: 32 
+  n_layers: 2
+  prenorm: True
+  dropout: 0.1
+
+callbacks:
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: val_loss
+    patience: 1000
+    mode: min
+    verbose: True
+  model_checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    filename: "{epoch:02d}-{val_loss:.2f}"
+    dirpath: ${save_dir}
+    verbose: True
+
+task :
+  _target_: task.PautomacTask
+  model: ${model}
+  lr: 1e-3

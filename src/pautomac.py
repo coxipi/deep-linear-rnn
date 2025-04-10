@@ -33,6 +33,7 @@ class PautomacDataModule(LightningDataModule):
     def __init__(self, dataset, batch_size=32, num_workers=0):
         super().__init__()
         self.save_hyperparameters()
+        self.vocab_size = dataset.vocab_size
         self.automata_name = dataset.automata_name
         self.batch_size = batch_size
         self.train_dataset, self.val_dataset, self.test_dataset = random_split(
@@ -69,20 +70,24 @@ class PautomacDataModule(LightningDataModule):
 
 # Example usage
 if __name__ == "__main__":
-    automata_name = '4.spice.train'
+    automata_name = '3.pautomac.train'
     dataset = PautomacDataset(automata_name)
 
     data_module = PautomacDataModule(dataset, batch_size=2)
+    print(data_module.vocab_size)
 
+    print("Train dataset size:", len(data_module.train_dataset))
     for batch in data_module.train_dataloader():
         print(batch.shape)
         print(batch)
         break
     
+    print("Validation dataset size:", len(data_module.val_dataset))
     for batch in data_module.val_dataloader():
         print(batch.shape)
         break
 
+    print("Test dataset size:", len(data_module.test_dataset))
     for batch in data_module.test_dataloader():
         print(batch.shape)
         break

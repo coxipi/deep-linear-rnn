@@ -342,6 +342,8 @@ if __name__ == "__main__":
 
     dataset = PautomacDataset(automata_name="4.spice.train")
     datamodule = PautomacDataModule(dataset, batch_size=2)
+    print(dataset.vocab_size)
+    
     model = S4ModelWithEmbedding(d_input=dataset.vocab_size, embedding_dim=2, d_output=dataset.vocab_size, d_model=18, n_layers=2, padding_idx=0,dropout=0.1)
 
     task = PautomacTask(model=model, lr=1e-3)
