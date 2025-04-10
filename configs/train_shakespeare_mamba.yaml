@@ -30,15 +30,15 @@ trainer:
   limit_train_batches: 0.1
   accelerator: "cpu"
 
+model_args:
+  _target_: mamba.ModelArgs
+  d_model: 64 
+  n_layer: 4 
+  vocab_size: 50257
+
 model:
-  _target_: model.S4ModelWithEmbedding
-  d_input: ${datamodule.vocab_size}
-  embedding_dim: 512
-  d_output: ${datamodule.vocab_size}
-  d_model: 256 
-  n_layers: 2
-  prenorm: True
-  dropout: 0.1
+  _target_: mamba.Mamba
+  args: ${model_args}
 
 callbacks:
   early_stopping:

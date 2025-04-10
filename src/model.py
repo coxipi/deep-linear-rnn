@@ -295,9 +295,11 @@ class S4ModelWithEmbedding(S4Model):
         n_layers=4,
         dropout=0.2,
         prenorm=False,
+        padding_idx=None,
     ):
         super().__init__(embedding_dim, d_output, d_model, n_layers, dropout, prenorm)
-        self.embedding = nn.Embedding(d_input, embedding_dim)
+        self.embedding = nn.Embedding(d_input, embedding_dim, padding_idx=padding_idx)
+
     def forward(self, x):
         x = self.embedding(x)
         return super().forward(x)

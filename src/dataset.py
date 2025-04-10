@@ -53,6 +53,8 @@ class SyntheticCopyDataset(Dataset):
     ) -> Any:  # be careful on the return type
 
         if self.datatype == "int": 
+            # HERE WE CAN USE -1 AS PADDING TOKEN AS PADDING IS JUST ON THE OUTPUT
+            # IF PADDING AN INPUT (THAT WOULD GO THROUGH AN EMBEDDING LAYER) PADDING TOKEN HAS TO BE GREATER THAN 0
             x = torch.randint(0, self.vocab_size, (self.n_samples, self.seq_len), dtype=torch.long)
             y = torch.full((self.n_samples, self.seq_len), -1, dtype=torch.long)  # Initialize with -1 for ignored positions
             y[:, self.lookahead:] = x[:, :-self.lookahead]

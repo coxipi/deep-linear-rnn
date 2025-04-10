@@ -8,7 +8,6 @@ from lightning import Callback, LightningModule
 from torch import Tensor
 from torch.nn import functional as F
 
-
 def sequential_ce_loss(
     input: Tensor,
     target: Tensor,
@@ -219,6 +218,45 @@ class ShakespeareTask(LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
+class PautomacTask(LightningModule):
+    def __init__(self, model, lr=1e-3, ignore_index=0):
+        super().__init__()
+        self.model = model
+        self.lr = lr
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=ignore_index)
+    
+    def forward(self, x):
+        # Get model output sequence (batch, seq_len, vocab_size)
+        outputs = self.model(x)
+        return outputs
+
+    def _shared_step(self, batch):
+        x = batch[:, :-1]
+        y = batch[:, 1:]
+        logits = self(x)
+        vocab_size = logits.size(-1)
+        loss = self.loss_fn(logits.view(-1, vocab_size), y.reshape(-1))
+        return loss, logits, y
+    
+    def training_step(self, batch, batch_idx):
+        loss, _, _ = self._shared_step(batch)
+        self.log("train_loss", loss, prog_bar=True)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        loss, logits, targets = self._shared_step(batch)
+        ppl = torch.exp(loss)
+        self.log_dict({"val_loss": loss, "val_ppl": ppl}, prog_bar=True)
+    
+    def test_step(self, batch, batch_idx):
+        loss, logits, targets = self._shared_step(batch)
+        ppl = torch.exp(loss)
+        self.log_dict({"test_loss": loss, "test_ppl": ppl}, prog_bar=True)
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
 def test_int_task():
     seq_len = 10
     vocab_size = 2
@@ -270,11 +308,7 @@ def test_regression_task():
     trainer.validate(task, data_module)
 
 
-if __name__ == "__main__":
-    from model import DeepRNN, DeepRNNWithEmbedding, SimpleSeq2SeqRNN, S4Model, S4ModelWithEmbedding
-    from dataset import SyntheticCopyDataset, SyntheticCopyDataModule
-    from shakespeare import ShakesepeareDataModule
-    from transformers import AutoTokenizer
+def test_shakespeare():
     # Example usage
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
@@ -298,9 +332,29 @@ if __name__ == "__main__":
     # Validate the model
     trainer.validate(task, data_module)
 
-    #test_int_task()
 
-    #test_regression_task()
+if __name__ == "__main__":
+    from model import DeepRNN, DeepRNNWithEmbedding, SimpleSeq2SeqRNN, S4Model, S4ModelWithEmbedding
+    from dataset import SyntheticCopyDataset, SyntheticCopyDataModule
+    from shakespeare import ShakesepeareDataModule
+    from pautomac import PautomacDataModule, PautomacDataset
+    from transformers import AutoTokenizer
+
+    dataset = PautomacDataset(automata_name="4.spice.train")
+    datamodule = PautomacDataModule(dataset, batch_size=2)
+    model = S4ModelWithEmbedding(d_input=dataset.vocab_size, embedding_dim=2, d_output=dataset.vocab_size, d_model=18, n_layers=2, padding_idx=0,dropout=0.1)
+
+    task = PautomacTask(model=model, lr=1e-3)
+
+    # Initialize the trainer
+    from lightning import Trainer 
+    trainer = Trainer(max_epochs=400, accelerator="cpu")
+    # Train the model
+    trainer.fit(task, datamodule)
+    # Validate the model
+    trainer.validate(task, datamodule)
+
+
 
 
 
