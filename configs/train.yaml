@@ -21,6 +21,7 @@ train_dataset:
   vocab_size: 2 
   lookahead: 6
   datatype: "real"
+  copymode: "linear"
 
 val_dataset:
   _target_: dataset.SyntheticCopyDataset
@@ -29,6 +30,7 @@ val_dataset:
   vocab_size: 2 
   lookahead: 6
   datatype: "real"
+  copymode: "linear"
 
 test_dataset:
   _target_: dataset.SyntheticCopyDataset
@@ -37,6 +39,7 @@ test_dataset:
   vocab_size: 2 
   lookahead: 6
   datatype: "real"
+  copymode: "linear"
 
 datamodule:
   _target_: dataset.SyntheticCopyDataModule
