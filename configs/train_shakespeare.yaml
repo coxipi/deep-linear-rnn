@@ -35,13 +35,12 @@ trainer:
   accelerator: "cpu"
 
 model:
-  _target_: model.S4ModelWithEmbedding
-  d_input: ${datamodule.vocab_size}
-  embedding_dim: 64 
-  d_output: ${datamodule.vocab_size}
-  d_model: 128 
-  n_layers: 2
-  prenorm: True
+  _target_: cprnn.CPRNN
+  input_size: ${datamodule.vocab_size}
+  hidden_size: 128
+  vocab_size: ${datamodule.vocab_size}
+  use_embedding: True
+  rank: 8
   dropout: 0.1
 
 callbacks:
