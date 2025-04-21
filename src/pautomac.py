@@ -5,11 +5,12 @@ from torch.utils.data import random_split
 from splearn.datasets.base import load_data_sample
 from splearn.tests.datasets.get_dataset_path import get_dataset_path
 from lightning import LightningDataModule
+import os
 
 
 class PautomacDataset(Dataset):
-    def __init__(self, automata_name):
-        self.automata_name = automata_name
+    def __init__(self, automata_path):
+        self.automata_path = automata_path
         self.data, self.vocab_size = self.load_data()
 
     def __len__(self):
@@ -20,7 +21,7 @@ class PautomacDataset(Dataset):
 
     def load_data(self):
         # Load the automata data from the specified file
-        data = load_data_sample(adr=get_dataset_path(self.automata_name))
+        data = load_data_sample(self.automata_path)
         vocab_size = data.nbL + 1
         data = data.data
         # convert data to torch tensor with int datatype
@@ -34,7 +35,7 @@ class PautomacDataModule(LightningDataModule):
         super().__init__()
         self.save_hyperparameters()
         self.vocab_size = dataset.vocab_size
-        self.automata_name = dataset.automata_name
+        self.automata_path = dataset.automata_path
         self.batch_size = batch_size
         self.train_dataset, self.val_dataset, self.test_dataset = random_split(
             dataset,
@@ -70,8 +71,8 @@ class PautomacDataModule(LightningDataModule):
 
 # Example usage
 if __name__ == "__main__":
-    automata_name = '3.pautomac.train'
-    dataset = PautomacDataset(automata_name)
+    automata_path = "/Users/michaelrizvi/data/PAutomaC-competition_sets/8.pautomac.train" 
+    dataset = PautomacDataset(automata_path)
 
     data_module = PautomacDataModule(dataset, batch_size=2)
     print(data_module.vocab_size)

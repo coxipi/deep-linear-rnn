@@ -1,4 +1,8 @@
-"""Standalone version of Structured State Space sequence model (S4)."""
+"""
+Standalone version of Structured State Space sequence model (S4).
+Taken from: https://github.com/state-spaces/s4
+
+"""
 
 from collections import defaultdict
 from typing import Optional, Mapping, Tuple, Union

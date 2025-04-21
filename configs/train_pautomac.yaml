@@ -16,7 +16,7 @@ logger:
 
 dataset:
   _target_: pautomac.PautomacDataset
-  automata_name: "3.pautomac.train"
+  automata_path: "/Users/michaelrizvi/data/PAutomaC-competition_sets/8.pautomac.train"
 
 datamodule:
   _target_: pautomac.PautomacDataModule
@@ -32,13 +32,13 @@ trainer:
 
 model:
   _target_: model.S4ModelWithEmbedding
-  d_input: 5 # HARDCODED FOR NOT should be vocab_size
+  d_input: 9 # HARDCODED FOR NOT should be vocab_size
   embedding_dim: 2 
-  d_output: 5 # HARDCODED FOR NOT should be vocab_size 
+  d_output: 9 # HARDCODED FOR NOT should be vocab_size 
   d_model: 32 
   n_layers: 2
   prenorm: True
-  dropout: 0.1
+  dropout: 0.0
 
 callbacks:
   early_stopping:

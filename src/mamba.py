@@ -18,6 +18,7 @@ Glossary:
     Δ or delta: input-dependent step size
     dt_rank: rank of Δ                  (See [1] Section 3.6 "Parameterization of ∆")
 
+Taken from: https://github.com/johnma2006/mamba-minimal
 """
 from __future__ import annotations
 import math

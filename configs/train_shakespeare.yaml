@@ -17,9 +17,13 @@ logger:
 datamodule:
   _target_: shakespeare.ShakesepeareDataModule
   tokenizer:
-    _target_: transformers.AutoTokenizer.from_pretrained
-    pretrained_model_name_or_path: "gpt2"
-  vocab_size: 50257 # known value for gpt-2 tokenizer, hacky but it works 
+    #_target_: transformers.AutoTokenizer.from_pretrained
+    #pretrained_model_name_or_path: "gpt2"
+    _target_: charactertokenizer.CharacterTokenizer
+    characters: string.printable
+    model_max_length: 64
+  #vocab_size: 50257 # known value for gpt-2 tokenizer, hacky but it works 
+  vocab_size: 107
   input_seq_len: 64 
   batch_size: 32 
 
@@ -33,9 +37,9 @@ trainer:
 model:
   _target_: model.S4ModelWithEmbedding
   d_input: ${datamodule.vocab_size}
-  embedding_dim: 512
+  embedding_dim: 64 
   d_output: ${datamodule.vocab_size}
-  d_model: 256 
+  d_model: 128 
   n_layers: 2
   prenorm: True
   dropout: 0.1
@@ -57,6 +61,6 @@ callbacks:
     verbose: True
 
 task :
-  _target_: task.ShakespeareTask
+  _target_: task.ShakespeareCharTask
   model: ${model}
   lr: 1e-3

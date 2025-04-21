@@ -7,6 +7,7 @@ from beartype import beartype
 from lightning import Callback, LightningModule
 from torch import Tensor
 from torch.nn import functional as F
+import math
 
 def sequential_ce_loss(
     input: Tensor,
@@ -218,6 +219,18 @@ class ShakespeareTask(LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
+class ShakespeareCharTask(ShakespeareTask):
+    def validation_step(self, batch, batch_idx):
+        loss, logits, targets = self._shared_step(batch)
+        bpc = loss.item() / math.log(2)
+        self.log_dict({"val_loss": loss, "val_bpc": bpc}, prog_bar=True)
+
+    def test_step(self, batch, batch_idx):
+        loss, logits, targets = self._shared_step(batch)
+        bpc = loss.item() / math.log(2)
+        self.log_dict({"val_loss": loss, "val_bpc": bpc}, prog_bar=True)
+
+
 class PautomacTask(LightningModule):
     def __init__(self, model, lr=1e-3, ignore_index=0):
         super().__init__()
@@ -308,10 +321,17 @@ def test_regression_task():
     trainer.validate(task, data_module)
 
 
-def test_shakespeare():
+def test_shakespeare(tokenizer_type: Literal["gpt2", "char"] = "gpt2"):
     # Example usage
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
+    if tokenizer_type == "gpt2":
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")
+        tokenizer.pad_token = tokenizer.eos_token
+    elif tokenizer_type == "char":
+        import string
+        chars = string.printable
+        model_max_length = 512
+        tokenizer = CharacterTokenizer(chars, model_max_length)
+
     data_module = ShakesepeareDataModule(
         tokenizer=tokenizer,
         input_seq_len=64,
@@ -320,9 +340,12 @@ def test_shakespeare():
 
     vocab_size = data_module.vocab_size
 
-    model = S4ModelWithEmbedding(d_input=vocab_size, embedding_dim=768, d_output=vocab_size, d_model=512, n_layers=2)
+    model = S4ModelWithEmbedding(d_input=vocab_size, embedding_dim=126, d_output=vocab_size, d_model=64, n_layers=2)
 
-    task = ShakespeareTask(model=model, lr=1e-3)
+    if tokenizer_type == "char":
+        task = ShakespeareCharTask(model=model, lr=1e-3)
+    elif tokenizer_type == "gpt2":
+        task = ShakespeareTask(model=model, lr=1e-3)
 
     # Initialize the trainer
     from lightning import Trainer
@@ -339,22 +362,24 @@ if __name__ == "__main__":
     from shakespeare import ShakesepeareDataModule
     from pautomac import PautomacDataModule, PautomacDataset
     from transformers import AutoTokenizer
+    from charactertokenizer import CharacterTokenizer
 
-    dataset = PautomacDataset(automata_name="4.spice.train")
-    datamodule = PautomacDataModule(dataset, batch_size=2)
-    print(dataset.vocab_size)
+    test_shakespeare(tokenizer_type="char")
+    #dataset = PautomacDataset(automata_name="4.spice.train")
+    #datamodule = PautomacDataModule(dataset, batch_size=2)
+    #print(dataset.vocab_size)
     
-    model = S4ModelWithEmbedding(d_input=dataset.vocab_size, embedding_dim=2, d_output=dataset.vocab_size, d_model=18, n_layers=2, padding_idx=0,dropout=0.1)
+    #model = S4ModelWithEmbedding(d_input=dataset.vocab_size, embedding_dim=2, d_output=dataset.vocab_size, d_model=18, n_layers=2, padding_idx=0,dropout=0.1)
 
-    task = PautomacTask(model=model, lr=1e-3)
+    #task = PautomacTask(model=model, lr=1e-3)
 
-    # Initialize the trainer
-    from lightning import Trainer 
-    trainer = Trainer(max_epochs=400, accelerator="cpu")
-    # Train the model
-    trainer.fit(task, datamodule)
-    # Validate the model
-    trainer.validate(task, datamodule)
+    ## Initialize the trainer
+    #from lightning import Trainer 
+    #trainer = Trainer(max_epochs=400, accelerator="cpu")
+    ## Train the model
+    #trainer.fit(task, datamodule)
+    ## Validate the model
+    #trainer.validate(task, datamodule)
 
 
 

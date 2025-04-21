@@ -31,6 +31,8 @@ from torch.utils.data import DataLoader, Dataset
 from datasets import load_dataset
 from git import Optional
 from transformers import default_data_collator
+from charactertokenizer import CharacterTokenizer
+import string
 
 
 class BaseChatTemplate:
@@ -158,10 +160,18 @@ class ShakesepeareDataModule(LightningDataModule):
 # Usage example:
 if __name__ == "__main__":
     from transformers import AutoTokenizer
+    from charactertokenizer import CharacterTokenizer
+    import string
 
-    # Example usage
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
+
+    # Example usage with gpt 2 tokenizer
+    #tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    #tokenizer.pad_token = tokenizer.eos_token
+    
+    # Example usage with character level tokenizer
+    chars = string.printable # This is character vocab
+    model_max_length = 512
+    tokenizer = CharacterTokenizer(chars, model_max_length)
 
     dataset = load_shakespeare_data(
         tokenizer=tokenizer,
