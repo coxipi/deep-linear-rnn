@@ -60,7 +60,7 @@ model:
   vocab_size: ${train_dataset.vocab_size}
   hidden_size: 64 
   num_layers: 4
-  embedding_dim: 32
+  embedding_dim: ${train_dataset.vocab_size}
   rank: 8
   tokenizer: None
   dropout: 0.1
